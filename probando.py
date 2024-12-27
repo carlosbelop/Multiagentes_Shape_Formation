@@ -2,147 +2,164 @@ import pygame
 import random
 import math
 
-# Inicialización de Pygame
+# Inicializar Pygame
 pygame.init()
 
-# Configuración de la pantalla
+# Dimensiones de la ventana
 WIDTH, HEIGHT = 800, 800
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Shapebugs")
+window = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("SHAPEBUGS Simulation")
 
-# Definir colores
-RED = (255, 0, 0)
+# Colores
+WHITE = (255, 255, 255)
 BLUE = (0, 0, 255)
-GREEN = (0, 255, 0)
-GRAY = (169, 169, 169)
+RED = (255, 0, 0)
 
-# Parámetros del algoritmo
-NUM_AGENTS = 100
-MAX_HISTORY = 8
+# Parámetros de la simulación
+NUM_AGENTS = 50
+AGENT_RADIUS = 5
+SENSOR_RANGE = 10
+STEP_SIZE = 2
+SHAPE_RADIUS = 200
 
-# Variables globales
-agents = []
-shape_boundaries = []  # Para definir la forma a la que se deben ajustar los agentes
+# Coordenadas del centro del contenedor circular (el "shape")
+CONTAINER_CENTER = (WIDTH // 2, HEIGHT // 2)
 
-# Definición de los agentes
+# Clase para representar un agente
 class Agent:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.history_x = [x]
-        self.history_y = [y]
-        self.lost = True
-        self.inside = False
-        self.color = RED
-        self.bad_move = False
+    def __init__(self):
+        self.x = random.randint(0, WIDTH)
+        self.y = random.randint(0, HEIGHT)
+        self.vx = random.uniform(-1, 1) * STEP_SIZE
+        self.vy = random.uniform(-1, 1) * STEP_SIZE
+        self.color = BLUE
 
-    def move(self, neighbors):
-        gradient = self.get_gradient(neighbors)
-        new_x = self.x + gradient[0] + random.choice([-0.5, 0, 0.5])
-        new_y = self.y + gradient[1] + random.choice([-0.5, 0, 0.5])
+    def move(self):
+        # Actualizar la posición con las velocidades
+        self.x += self.vx
+        self.y += self.vy
 
-        self.history_x.insert(0, self.x)
-        self.history_y.insert(0, self.y)
-        if len(self.history_x) > MAX_HISTORY:
-            self.history_x.pop()
-        if len(self.history_y) > MAX_HISTORY:
-            self.history_y.pop()
-
-        if self.inside:
-            self.check_if_inside(new_x, new_y)
+        # Si está fuera del contenedor, movimiento aleatorio
+        if not inside_container(self.x, self.y):
+            # Moverse de manera aleatoria hasta encontrar el contenedor
+            self.vx = random.uniform(-1, 1) * STEP_SIZE
+            self.vy = random.uniform(-1, 1) * STEP_SIZE
         else:
-            self.x = new_x
-            self.y = new_y
+            # Movimiento controlado por fuerzas cuando está dentro
+            self.boundary_check()
 
-    def check_if_inside(self, new_x, new_y):
-        if self.is_inside_shape(new_x, new_y):
-            self.inside = True
-            self.color = BLUE
-            self.x = new_x
-            self.y = new_y
-        else:
-            self.bad_move = True
-            self.x = new_x
-            self.y = new_y
+    def boundary_check(self):
+        """Evitar que los agentes salgan del contenedor cuando están dentro."""
+        if not inside_container(self.x, self.y):
+            # Si el agente intenta salir del contenedor, revertir el movimiento
+            self.x -= self.vx
+            self.y -= self.vy
+            # Ajustar velocidad a algo aleatorio dentro del contenedor
+            self.vx = random.uniform(-1, 1) * STEP_SIZE
+            self.vy = random.uniform(-1, 1) * STEP_SIZE
 
-    def get_gradient(self, neighbors):
-        gradient = [0, 0]
-        for neighbor in neighbors:
-            unit_vector = self.get_unit_vector_towards(neighbor)
-            gradient[0] += unit_vector[0]
-            gradient[1] += unit_vector[1]
-        
-        magnitude = math.sqrt(gradient[0]**2 + gradient[1]**2)
-        if magnitude == 0:
-            return [0, 0]
-        return [gradient[0] / magnitude, gradient[1] / magnitude]
+    def draw(self, win):
+        pygame.draw.circle(win, self.color, (int(self.x), int(self.y)), AGENT_RADIUS)
 
-    def get_unit_vector_towards(self, neighbor):
-        dx = neighbor.x - self.x
-        dy = neighbor.y - self.y
-        dist = math.sqrt(dx**2 + dy**2)
-        if dist == 0:
-            return [0, 0]
-        return [dx / dist, dy / dist]
+    def distance(self, other):
+        return math.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2)
 
-    def is_inside_shape(self, x, y):
-        # Condiciones para que el agente esté dentro de una forma (ejemplo: rectángulos)
-        return (-12 <= x <= -15 and -15 <= y <= 15) or (12 <= x <= 15 and -15 <= y <= 15) or \
-               (-3 <= x <= -6 and -15 <= y <= 15) or (3 <= x <= 6 and -15 <= y <= 15)
+# Función para verificar si un agente está dentro del contenedor circular
+def inside_container(x, y):
+    cx, cy = CONTAINER_CENTER
+    return math.sqrt((x - cx) ** 2 + (y - cy) ** 2) <= SHAPE_RADIUS
 
-# Función para crear los agentes
-def create_agents(num_agents):
-    agents.clear()
-    for _ in range(num_agents):
-        agent = Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT))
-        agents.append(agent)
+# Crear agentes
+agents = [Agent() for _ in range(NUM_AGENTS)]
 
-# Función para encontrar vecinos
-def find_neighbors(agent):
-    neighbors = []
-    for other in agents:
-        if other != agent and math.sqrt((other.x - agent.x) ** 2 + (other.y - agent.y) ** 2) < 50:
-            neighbors.append(other)
-    return neighbors
+# Función para realizar la trilateración
+def trilateration(agent, neighbors):
+    if len(neighbors) < 3:
+        return  # Necesitamos al menos 3 vecinos para trilateración
 
-# Función para dibujar la forma
-def draw_shape():
-    for x in range(WIDTH):
-        for y in range(HEIGHT):
-            if -12 <= x <= -15 and -15 <= y <= 15:
-                screen.set_at((x, y), GRAY)
-            elif 12 <= x <= 15 and -15 <= y <= 15:
-                screen.set_at((x, y), GRAY)
-            elif -3 <= x <= -6 and -15 <= y <= 15:
-                screen.set_at((x, y), GRAY)
-            elif 3 <= x <= 6 and -15 <= y <= 15:
-                screen.set_at((x, y), GRAY)
+    # Obtener las coordenadas y distancias de tres vecinos
+    neighbor1 = neighbors[0]
+    neighbor2 = neighbors[1]
+    neighbor3 = neighbors[2]
 
-# Función principal
-def main():
-    running = True
-    create_agents(NUM_AGENTS)
+    # Distancias a los vecinos
+    d1 = agent.distance(neighbor1)
+    d2 = agent.distance(neighbor2)
+    d3 = agent.distance(neighbor3)
 
-    while running:
-        screen.fill((255, 255, 255))
+    # Coordenadas de los vecinos
+    x1, y1 = neighbor1.x, neighbor1.y
+    x2, y2 = neighbor2.x, neighbor2.y
+    x3, y3 = neighbor3.x, neighbor3.y
 
-        draw_shape()
+    # Cálculos intermedios para trilateración (basado en geometría)
+    A = 2 * (x2 - x1)
+    B = 2 * (y2 - y1)
+    C = d1**2 - d2**2 - x1**2 + x2**2 - y1**2 + y2**2
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
+    D = 2 * (x3 - x2)
+    E = 2 * (y3 - y2)
+    F = d2**2 - d3**2 - x2**2 + x3**2 - y2**2 + y3**2
 
-        for agent in agents:
-            neighbors = find_neighbors(agent)
-            agent.move(neighbors)
+    # Solución para las coordenadas (xp, yp) del agente
+    try:
+        xp = (C * E - F * B) / (A * E - B * D)
+        yp = (C * D - A * F) / (B * D - A * E)
 
-            # Dibujar el agente
-            pygame.draw.circle(screen, agent.color, (int(agent.x), int(agent.y)), 5)
+        # Actualizar las coordenadas del agente
+        agent.x = xp
+        agent.y = yp
+    except ZeroDivisionError:
+        pass
 
-        pygame.display.flip()
-        pygame.time.delay(30)
+# Función para aplicar el modelo de Gas Contenido
+def gas_content_movement(agent, neighbors):
+    force_x, force_y = 0, 0
 
-    pygame.quit()
+    for neighbor in neighbors:
+        # Calcular la distancia al vecino
+        distance = agent.distance(neighbor)
+        if distance < SENSOR_RANGE:
+            # Calcular la fuerza de repulsión (fuerza inversamente proporcional a la distancia)
+            repulsion = 1 / distance if distance > 0 else 0
+            dx = agent.x - neighbor.x
+            dy = agent.y - neighbor.y
+            # Aplicar la fuerza al agente (vector unitario multiplicado por la repulsión)
+            force_x += dx * repulsion
+            force_y += dy * repulsion
 
-if __name__ == "__main__":
-    main()
+    # Actualizar las velocidades del agente en función de la fuerza total
+    agent.vx += force_x * 0.05  # Escalamos la fuerza para que no sea muy alta
+    agent.vy += force_y * 0.05
+
+    # Limitar la velocidad máxima
+    max_speed = STEP_SIZE
+    speed = math.sqrt(agent.vx**2 + agent.vy**2)
+    if speed > max_speed:
+        agent.vx = (agent.vx / speed) * max_speed
+        agent.vy = (agent.vy / speed) * max_speed
+
+# Bucle principal de la simulación
+run = True
+while run:
+    pygame.time.delay(100)
+    window.fill(WHITE)
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            run = False
+
+    # Mover y dibujar agentes
+    for agent in agents:
+        neighbors = [a for a in agents if agent.distance(a) < SENSOR_RANGE and a != agent]
+        trilateration(agent, neighbors)
+        gas_content_movement(agent, neighbors)
+        agent.move()
+        agent.draw(window)
+
+    # Dibujar el contorno de la forma objetivo (círculo por simplicidad)
+    pygame.draw.circle(window, RED, CONTAINER_CENTER, SHAPE_RADIUS, 1)
+
+    pygame.display.update()
+
+pygame.quit()

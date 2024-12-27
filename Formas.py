@@ -16,9 +16,9 @@ BLUE = (0, 0, 255)
 RED = (255, 0, 0)
 
 # Parámetros de la simulación
-NUM_AGENTS = 50
+NUM_AGENTS = 200
 AGENT_RADIUS = 5
-SENSOR_RANGE = 100
+SENSOR_RANGE = 10
 STEP_SIZE = 2
 SHAPE_RADIUS = 200
 
@@ -123,7 +123,6 @@ def trilateration(agent, neighbors):
         pass
 
 # Función para aplicar el modelo de Gas Contenido
-# TODO otra función parecida para el movimiento de las partículas fuera de la figura
 def gas_content_movement(agent, neighbors):
     force_x, force_y = 0, 0
 
@@ -133,6 +132,33 @@ def gas_content_movement(agent, neighbors):
         if distance < SENSOR_RANGE:
             # Calcular la fuerza de repulsión (fuerza inversamente proporcional a la distancia)
             repulsion = 1 / distance if distance > 0 else 0
+            dx = agent.x - neighbor.x
+            dy = agent.y - neighbor.y
+            # Aplicar la fuerza al agente (vector unitario multiplicado por la repulsión)
+            force_x += dx * repulsion
+            force_y += dy * repulsion
+
+    # Actualizar las velocidades del agente en función de la fuerza total
+    agent.vx += force_x * 0.30  # Escalamos la fuerza para que no sea muy alta
+    agent.vy += force_y * 0.30
+
+    # Limitar la velocidad máxima
+    max_speed = STEP_SIZE
+    speed = math.sqrt(agent.vx**2 + agent.vy**2)
+    if speed > max_speed:
+        agent.vx = (agent.vx / speed) * max_speed
+        agent.vy = (agent.vy / speed) * max_speed
+
+def outside_movement(agent, neighbors):
+    force_x, force_y = 0, 0
+
+    for neighbor in neighbors:
+        # Calcular la distancia al vecino
+        distance = agent.distance(neighbor)
+        if distance <= AGENT_RADIUS+5:
+            # Calcular la fuerza de repulsión (fuerza inversamente proporcional a la distancia)
+            # repulsion = 1 / distance if distance > 0 else 0
+            repulsion = 1
             dx = agent.x - neighbor.x
             dy = agent.y - neighbor.y
             # Aplicar la fuerza al agente (vector unitario multiplicado por la repulsión)
@@ -164,12 +190,16 @@ while run:
     for agent in agents:
         neighbors = [a for a in agents if agent.distance(a) < SENSOR_RANGE and a != agent]
         trilateration(agent, neighbors)
-        gas_content_movement(agent, neighbors)
+        
+        if inside_container(agent.x, agent.y):
+            gas_content_movement(agent, neighbors)
+        else:
+            outside_movement(agent, neighbors)
         agent.move()
         agent.draw(window)
 
     # Dibujar el contorno de la forma objetivo (círculo por simplicidad)
-    pygame.draw.circle(window, RED, CONTAINER_CENTER, SHAPE_RADIUS, 1)
+    # pygame.draw.circle(window, RED, CONTAINER_CENTER, SHAPE_RADIUS, 1)
 
     pygame.display.update()
 
