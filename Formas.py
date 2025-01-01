@@ -15,24 +15,25 @@ NUM_AGENTS = 200
 AGENT_RADIUS = 5
 SENSOR_RANGE = 10
 STEP_SIZE = 2
-SHAPE_RADIUS = 200
+# SHAPE_RADIUS = 200
 MIN_AGENTS = 10
 MAX_AGENTS = 500
 
 # Coordenadas del centro del contenedor circular (el "shape")
-CONTAINER_CENTER = (WIDTH // 2, HEIGHT // 2)
+# CONTAINER_CENTER = (WIDTH // 2, HEIGHT // 2)
 
 # Clase para representar un agente
 class Agent:
-    def __init__(self):
+    def __init__(self, shape: list):
         self.x = random.randint(0, WIDTH)
         self.y = random.randint(0, HEIGHT)
         self.vx = random.uniform(-1, 1) * STEP_SIZE
         self.vy = random.uniform(-1, 1) * STEP_SIZE
         self.color = BLUE
+        self.shape = shape
 
     def move(self):
-        if inside_container(self.x, self.y):
+        if inside_container(self.x, self.y, self.shape):
             self.boundary_check()
         
         self.x += self.vx
@@ -44,7 +45,7 @@ class Agent:
         elif self.y > HEIGHT: self.y = 0
 
     def boundary_check(self):
-        while (not inside_container(self.x + self.vx, self.y + self.vy)):
+        while (not inside_container(self.x + self.vx, self.y + self.vy, self.shape)):
             if random.random() <= 0.1:
                 self.vx = random.uniform(-1, 1) * STEP_SIZE
                 self.vy = random.uniform(-1, 1) * STEP_SIZE
@@ -85,9 +86,9 @@ class Slider:
         return int(self.val)
 
 # Función para verificar si un agente está dentro del contenedor circular
-def inside_container(x, y):
-    cx, cy = CONTAINER_CENTER
-    return math.sqrt((x - cx) ** 2 + (y - cy) ** 2) <= SHAPE_RADIUS
+def inside_container(x: int, y: int, shape: list) -> bool :
+    # TODO pensar en otro método porque este es muy costoso.
+    return (int(x),int(y)) in shape
 
 def trilateration(agent, neighbors):
     if len(neighbors) < 3:
@@ -174,7 +175,12 @@ def main():
     window = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("SHAPEBUGS Simulation with Slider")
 
-    agents = [Agent() for _ in range(NUM_AGENTS)]
+    # Carga de la forma
+    with open("corazon.txt", "r") as file:
+        lines = file.readlines()
+        heart_coords = [eval(line.strip()) for line in lines]  # Convierte cada línea a una tupla
+
+    agents = [Agent(heart_coords) for _ in range(NUM_AGENTS)]
 
     slider = Slider(20, HEIGHT - 40, 200, 20, MIN_AGENTS, MAX_AGENTS, NUM_AGENTS)
 
@@ -199,7 +205,7 @@ def main():
 
         # Ajustar la lista de agentes dinámicamente
         if num_agents > len(agents):
-            agents += [Agent() for _ in range(num_agents - len(agents))]
+            agents += [Agent(heart_coords) for _ in range(num_agents - len(agents))]
         elif num_agents < len(agents):
             agents = agents[:num_agents]
 
@@ -208,7 +214,7 @@ def main():
             neighbors = [a for a in agents if agent.distance(a) < SENSOR_RANGE and a != agent]
             trilateration(agent, neighbors)
             
-            if inside_container(agent.x, agent.y):
+            if inside_container(agent.x, agent.y, agent.shape):
                 gas_content_movement(agent, neighbors)
             else:
                 outside_movement(agent, neighbors)
@@ -217,6 +223,10 @@ def main():
 
         # Dibujar el slider
         slider.draw(window)
+
+        # Dibujar el contorno de la forma objetivo (círculo por simplicidad)
+        # TODO hacer que pinte el contorno coloreando aquellos píxeles vecinos de píxeles no incluídos en la forma.
+        # pygame.draw.circle(window, RED, CONTAINER_CENTER, SHAPE_RADIUS, 1)
 
         pygame.display.update()
 
