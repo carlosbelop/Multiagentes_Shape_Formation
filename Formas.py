@@ -13,14 +13,10 @@ BLACK = (0, 0, 0)
 # Parámetros de la simulación
 NUM_AGENTS = 200
 AGENT_RADIUS = 5
-SENSOR_RANGE = 10
+SENSOR_RANGE = 30
 STEP_SIZE = 2
-# SHAPE_RADIUS = 200
 MIN_AGENTS = 10
 MAX_AGENTS = 500
-
-# Coordenadas del centro del contenedor circular (el "shape")
-# CONTAINER_CENTER = (WIDTH // 2, HEIGHT // 2)
 
 # Clase para representar un agente
 class Agent:
@@ -87,8 +83,10 @@ class Slider:
 
 # Función para verificar si un agente está dentro del contenedor circular
 def inside_container(x: int, y: int, shape: list) -> bool :
-    # TODO pensar en otro método porque este es muy costoso.
-    return (int(x),int(y)) in shape
+    # Escalamos y normalizamos las coordenadas
+    x = (x - WIDTH/2) / 200
+    y = (HEIGHT/2 - y) / 200
+    return (x**2 + y**2 - 1)**3 - x**2 * y**3 <= 0
 
 def trilateration(agent, neighbors):
     if len(neighbors) < 3:
@@ -128,14 +126,14 @@ def gas_content_movement(agent, neighbors):
     for neighbor in neighbors:
         distance = agent.distance(neighbor)
         if distance < SENSOR_RANGE:
-            repulsion = 1 / distance if distance > 0 else 0
+            repulsion = (SENSOR_RANGE - distance) / distance if distance > 0 else 0
             dx = agent.x - neighbor.x
             dy = agent.y - neighbor.y
             force_x += dx * repulsion
             force_y += dy * repulsion
 
-    agent.vx += force_x * 0.30
-    agent.vy += force_y * 0.30
+    agent.vx += force_x * 0.2
+    agent.vy += force_y * 0.2
 
     max_speed = STEP_SIZE
     speed = math.sqrt(agent.vx**2 + agent.vy**2)
@@ -169,7 +167,24 @@ def draw_text(win, text, position, color=BLACK, font_size=24):
     text_surface = font.render(text, True, color)
     win.blit(text_surface, position)
 
-def main():
+def run(n_agents: int=200, sensor_range: int=30, ecuation_shape: function=inside_container, step_size: int=2, min_agents: int=10, max_agents: int=500, width: int=800, height: int=800, simulation_delay: int = 10):
+    
+    WIDTH, HEIGHT = 800, 800
+
+    # Colores
+    WHITE = (255, 255, 255)
+    BLUE = (0, 0, 255)
+    RED = (255, 0, 0)
+    BLACK = (0, 0, 0)
+
+    # Parámetros de la simulación
+    NUM_AGENTS = 200
+    AGENT_RADIUS = 5
+    SENSOR_RANGE = 30
+    STEP_SIZE = 2
+    MIN_AGENTS = 10
+    MAX_AGENTS = 500
+
     pygame.init()
 
     window = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -231,6 +246,9 @@ def main():
         pygame.display.update()
 
     pygame.quit()
+
+def main():
+    print()
 
 if __name__ == "__main__":
     main()
