@@ -1,42 +1,27 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
-# Tamaño de la ventana
-width, height = 800, 800
+# Lista de puntos en formato (x, y)
+puntos = np.array([
+    [3, 3],
+    [1, 7],
+    [8, 9],
+    [3, 5],
+    [4, 7],
+    [11, 1],
+    [6, 2],
+    [8, 7],
+    [15, 11],
+    # ... más puntos
+])
 
-# Lista para almacenar las coordenadas
-heart_coords = []
+# Calcula la diferencia entre todos los puntos en formato de matriz
+diferencias = puntos[:, np.newaxis, :] - puntos[np.newaxis, :, :]
 
-# Parámetros para ajustar el tamaño del corazón
-scale = 200  # Ajustado para que el corazón quepa en 800x800
-center_x, center_y = width // 2, height // 2  # Centro del corazón
+# Calcula la distancia euclidiana (norma 2) para cada par de puntos
+distancias = np.linalg.norm(diferencias, axis=-1)
 
-# Función que evalúa si un punto (x, y) está dentro del corazón usando la ecuación implícita
-def is_inside_heart(x, y, scale):
-    # Escalamos y normalizamos las coordenadas
-    x = (x - center_x) / scale
-    y = (center_y - y) / scale
-    # Ecuación implícita del corazón
-    return (x**2 + y**2 - 1)**3 - x**2 * y**3 <= 0
+indices_cercanos = np.argsort(distancias, axis=1)[:, 1:4]  # [:, 1:4] para evitar el punto consigo mismo
 
-# Recorremos todos los píxeles de la ventana
-for x in range(width):
-    for y in range(height):
-        if is_inside_heart(x, y, scale):
-            heart_coords.append((x, y))
-
-# Guardar la lista en un archivo de texto
-with open("corazon.txt", "w") as file:
-    for coord in heart_coords:
-        file.write(f"{coord}\n")  # Escribe cada coordenada en una línea
-
-# Graficar las coordenadas del corazón
-x_vals, y_vals = zip(*heart_coords)
-plt.figure(figsize=(8, 8))
-plt.scatter(x_vals, y_vals, color='red', s=0.5)
-plt.gca().invert_yaxis()  # Invertir el eje Y para que coincida con la convención gráfica
-plt.title("Heart Shape")
-plt.xlim(1, 800)
-plt.ylim(1, 800)
-plt.gca().set_aspect('equal', adjustable='box')
-plt.show()
+print(distancias)
+print(indices_cercanos)
+print(puntos[indices_cercanos[0]])

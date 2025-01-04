@@ -1,6 +1,7 @@
 import pygame
 import random
 import math
+import numpy as np
 from typing import Callable
 
 WIDTH, HEIGHT = 800, 800
@@ -142,7 +143,7 @@ def outside_movement(agent, neighbors):
     force_x, force_y = 0, 0
     for neighbor in neighbors:
         distance = agent.distance(neighbor)
-        if distance <= agent.sensor_range+5:
+        if distance <= agent.agent_radius+5:
             repulsion = 1
             dx = agent.x - neighbor.x
             dy = agent.y - neighbor.y
@@ -206,9 +207,22 @@ def run(ecuation_shape: Callable[[int, int], bool], n_agents: int=200, sensor_ra
         elif n_agents < len(agents):
             agents = agents[:n_agents]
 
+        # Cálculo de distancia entre los puntos
+        agents_coor_array = np.array([(agent.x, agent.y) for agent in agents])
+
+        # Calcula la diferencia entre todos los puntos en formato de matriz
+        diferencias = agents_coor_array[:, np.newaxis, :] - agents_coor_array[np.newaxis, :, :]
+
+        # Calcula la distancia euclidiana (norma 2) para cada par de puntos
+        distancias = np.linalg.norm(diferencias, axis=-1)
+
+        indices_cercanos = np.argsort(distancias, axis=1)[:, 1:4]
+
         # Mover y dibujar agentes
-        for agent in agents:
-            neighbors = [a for a in agents if agent.distance(a) < sensor_range and a != agent]
+        for index, agent in enumerate(agents):
+            
+            # print(indices_cercanos[index])
+            neighbors = [agents[i] for i in indices_cercanos[index]]
             trilateration(agent, neighbors)
             
             if ecuation_shape(agent.x, agent.y):
@@ -232,14 +246,79 @@ def run(ecuation_shape: Callable[[int, int], bool], n_agents: int=200, sensor_ra
 # Función con forma de corazón
 def heart_shape(x: int, y: int) -> bool :
     # Escalamos y normalizamos las coordenadas
-    x = (x - WIDTH/2) / 200
-    y = (HEIGHT/2 - y) / 200
+    
+    width = 800
+    height = 800
+    scale = 200
+
+    x = (x - width/2) / scale
+    y = (height/2 - y) / scale
     return (x**2 + y**2 - 1)**3 - x**2 * y**3 <= 0
 
+def star_shape(x, y, x0=400, y0=400, a=200, n=10):
+    # Ajustamos las coordenadas al nuevo centro (x0, y0)
+    x_adjusted = x - x0
+    y_adjusted = y - y0
+    
+    # Convertimos las coordenadas ajustadas (x, y) a polares (r, theta)
+    r_punto = math.sqrt(x_adjusted**2 + y_adjusted**2)  # Distancia al origen (nuevo centro)
+    theta = math.atan2(y_adjusted, x_adjusted)          # Ángulo en radianes
+
+    # Calculamos el radio de la estrella en ese ángulo
+    r_estrella = a * math.cos(n * theta / 2)
+
+    # Si el punto está dentro o sobre el contorno de la estrella
+    return r_punto <= abs(r_estrella)
+
+def esta_dentro_pene(x, y, centro1=(300, 150), centro2=(500, 150), radio=100, altura=650):
+    # Parte 1: Círculos en la parte superior
+    x1, y1 = centro1  # Centro del primer círculo
+    x2, y2 = centro2  # Centro del segundo círculo
+
+    # Verificamos si está dentro de alguno de los dos círculos
+    dentro_circulo1 = math.sqrt((x - x1)**2 + (y - y1)**2) <= radio
+    dentro_circulo2 = math.sqrt((x - x2)**2 + (y - y2)**2) <= radio
+    
+    # Parte 2: Rectángulo en el centro (alargado)
+    # Verificamos si está dentro del rectángulo alargado vertical
+    dentro_rectangulo = (x >= x1 and x <= x2 and y >= y1 and y <= altura)
+    
+    distancia_glande = math.sqrt((x - (x1+x2)/2)**2 + (y - altura)**2)
+    dentro_semicirculo = distancia_glande <= radio and y <= altura+radio
+
+    # Si está en cualquiera de los círculos o en el rectángulo, está dentro de la forma
+    return dentro_circulo1 or dentro_circulo2 or dentro_rectangulo or dentro_semicirculo
+
+def is_point_in_shape(x, y):
+    # Coordenadas del cuadrado grande
+    large_square_x_min, large_square_x_max = 100, 700
+    large_square_y_min, large_square_y_max = 100, 700
+    
+    # Verificar si el punto está dentro del cuadrado grande
+    if not (large_square_x_min <= x <= large_square_x_max and large_square_y_min <= y <= large_square_y_max):
+        return False
+    
+    # Coordenadas de los 9 cuadrados pequeños (simétricamente distribuidos)
+    small_square_size = 100
+    small_square_gap = 100
+    small_squares = [
+        (x_center, y_center)
+        for x_center in range(200, 601, small_square_gap + small_square_size)
+        for y_center in range(200, 601, small_square_gap + small_square_size)
+    ]
+    
+    # Verificar si el punto está en alguno de los cuadrados pequeños
+    for x_center, y_center in small_squares:
+        if x_center - small_square_size // 2 <= x <= x_center + small_square_size // 2 and \
+           y_center - small_square_size // 2 <= y <= y_center + small_square_size // 2:
+            return False  # El punto está dentro de uno de los cuadrados pequeños
+    
+    # Si el punto está dentro del cuadrado grande pero fuera de los pequeños, devuelve True
+    return True
 
 def main():
     
-    run(heart_shape)
+    run(is_point_in_shape, sensor_range= 50)
 
 if __name__ == "__main__":
     main()
