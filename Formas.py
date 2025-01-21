@@ -123,7 +123,7 @@ def gas_content_movement(agent, neighbors):
     force_x, force_y = 0, 0
     for neighbor in neighbors:
         distance = agent.distance(neighbor)
-        if distance < agent.sensor_range:
+        if distance <= agent.sensor_range:
             repulsion = (agent.sensor_range - distance) / distance if distance > 0 else 0
             dx = agent.x - neighbor.x
             dy = agent.y - neighbor.y
@@ -143,7 +143,13 @@ def outside_movement(agent, neighbors):
     force_x, force_y = 0, 0
     for neighbor in neighbors:
         distance = agent.distance(neighbor)
-        if distance <= agent.agent_radius+5:
+        if distance <= agent.sensor_range and distance > agent.sensor_range - 10 and neighbor.inside_container():
+            attraction = (agent.sensor_range - distance) / distance if distance > 0 else 0
+            dx = agent.x - neighbor.x
+            dy = agent.y - neighbor.y
+            force_x -= dx * attraction
+            force_y -= dy * attraction
+        elif distance <= agent.agent_radius+5:
             repulsion = 1
             dx = agent.x - neighbor.x
             dy = agent.y - neighbor.y
@@ -172,6 +178,7 @@ def run(ecuation_shape: Callable[[int, int], bool], n_agents: int=200, sensor_ra
     BLUE = (0, 0, 255)
     RED = (255, 0, 0)
     BLACK = (0, 0, 0)
+    GRAY = (128, 128, 128)
 
     pygame.init()
 
@@ -207,7 +214,7 @@ def run(ecuation_shape: Callable[[int, int], bool], n_agents: int=200, sensor_ra
         elif n_agents < len(agents):
             agents = agents[:n_agents]
 
-        # Cálculo de distancia entre los puntos
+        # Cálculo de distancia entre los puntos con vectorización para eficiencia
         agents_coor_array = np.array([(agent.x, agent.y) for agent in agents])
 
         # Calcula la diferencia entre todos los puntos en formato de matriz
@@ -221,23 +228,21 @@ def run(ecuation_shape: Callable[[int, int], bool], n_agents: int=200, sensor_ra
         # Mover y dibujar agentes
         for index, agent in enumerate(agents):
             
-            # print(indices_cercanos[index])
             neighbors = [agents[i] for i in indices_cercanos[index]]
             trilateration(agent, neighbors)
-            
+
+            # Si el agente cree que está dentro de la figura
             if ecuation_shape(agent.x, agent.y):
                 gas_content_movement(agent, neighbors)
+                agent.color = BLUE
             else:
                 outside_movement(agent, neighbors)
+                agent.color = GRAY
             agent.move()
             agent.draw(window)
 
         # Dibujar el slider
         slider.draw(window)
-
-        # Dibujar el contorno de la forma objetivo (círculo por simplicidad)
-        # TODO hacer que pinte el contorno coloreando aquellos píxeles vecinos de píxeles no incluídos en la forma.
-        # pygame.draw.circle(window, RED, CONTAINER_CENTER, SHAPE_RADIUS, 1)
 
         pygame.display.update()
 
@@ -270,7 +275,7 @@ def star_shape(x, y, x0=400, y0=400, a=200, n=10):
     # Si el punto está dentro o sobre el contorno de la estrella
     return r_punto <= abs(r_estrella)
 
-def esta_dentro_pene(x, y, centro1=(300, 150), centro2=(500, 150), radio=100, altura=650):
+def suspicious_shape(x, y, centro1=(300, 150), centro2=(500, 150), radio=100, altura=650):
     # Parte 1: Círculos en la parte superior
     x1, y1 = centro1  # Centro del primer círculo
     x2, y2 = centro2  # Centro del segundo círculo
@@ -289,7 +294,7 @@ def esta_dentro_pene(x, y, centro1=(300, 150), centro2=(500, 150), radio=100, al
     # Si está en cualquiera de los círculos o en el rectángulo, está dentro de la forma
     return dentro_circulo1 or dentro_circulo2 or dentro_rectangulo or dentro_semicirculo
 
-def is_point_in_shape(x, y):
+def squared_square(x, y):
     # Coordenadas del cuadrado grande
     large_square_x_min, large_square_x_max = 100, 700
     large_square_y_min, large_square_y_max = 100, 700
@@ -318,7 +323,7 @@ def is_point_in_shape(x, y):
 
 def main():
     
-    run(is_point_in_shape, sensor_range= 50)
+    run(squared_square, sensor_range= 50, max_agents=1000)
 
 if __name__ == "__main__":
     main()

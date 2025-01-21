@@ -1,27 +1,146 @@
 import numpy as np
 
-# Lista de puntos en formato (x, y)
-puntos = np.array([
-    [3, 3],
-    [1, 7],
-    [8, 9],
-    [3, 5],
-    [4, 7],
-    [11, 1],
-    [6, 2],
-    [8, 7],
-    [15, 11],
-    # ... más puntos
-])
+class Agent:
+    def __init__(self, id, initial_position=None, neighbors=None):
+        self.id = id
+        self.position = initial_position if initial_position is not None else np.array([0.0, 0.0])
+        self.perceived_position = None
+        self.neighbors = neighbors if neighbors is not None else []
+        self.trilateration_window = []  # Keep track of recent trilaterations
+        self.w = 5  # Window size for averaging trilaterations
+        self.r = 10  # Steps interval for coordinate adjustment
+        self.beta = 0.1  # Step size for gradient descent
+    
+    def distance(self, pos1, pos2):
+        """Calculate the Euclidean distance between two points."""
+        return np.linalg.norm(pos1 - pos2)
 
-# Calcula la diferencia entre todos los puntos en formato de matriz
-diferencias = puntos[:, np.newaxis, :] - puntos[np.newaxis, :, :]
+    def proximity_sensor(self, neighbor):
+        """Simulate proximity sensor that gives the distance to a neighbor with some error."""
+        true_distance = self.distance(self.position, neighbor.position)
+        # error = np.random.uniform(-0.1, 0.1)  # Uniformly distributed error
+        return true_distance #+ error
 
-# Calcula la distancia euclidiana (norma 2) para cada par de puntos
-distancias = np.linalg.norm(diferencias, axis=-1)
+    def trilateration_loss(self, perceived_position):
+        """Compute the loss function for trilateration based on distance to neighbors."""
+        loss = 0.0
+        for neighbor in self.neighbors:
+            dPSi = self.proximity_sensor(neighbor)
+            # print(neighbor.id)
+            xi, yi = neighbor.perceived_position
+            loss += (np.linalg.norm(perceived_position - np.array([xi, yi])) - dPSi) ** 2
+        return loss
 
-indices_cercanos = np.argsort(distancias, axis=1)[:, 1:4]  # [:, 1:4] para evitar el punto consigo mismo
+    def gradient_descent(self):
+        """Perform gradient descent to minimize trilateration error."""
+        if sum(1 for neigh in self.neighbors if neigh.perceived_position is not None) < 3:
+            return  # Not enough neighbors to perform trilateration
 
-print(distancias)
-print(indices_cercanos)
-print(puntos[indices_cercanos[0]])
+        # Initial position (if known) or random start
+        if self.perceived_position is None:
+            self.perceived_position = np.random.random(2)
+        
+        for i in range(100):  # Maximum 100 iterations
+            # print(self.perceived_position)
+            gradient = self.compute_gradient(self.perceived_position)
+            self.perceived_position = self.perceived_position - self.beta * gradient
+            if np.linalg.norm(gradient) < 1e-5:
+                break  # Stop when gradient is small
+    
+    def compute_gradient(self, position):
+        """Numerically compute gradient of the loss function."""
+        epsilon = 1e-6
+        grad = np.zeros_like(position)
+        
+        for i in range(2):  # Iterate over x and y
+            pos_forward = position.copy()
+            pos_forward[i] += epsilon
+            pos_backward = position.copy()
+            pos_backward[i] -= epsilon
+            grad[i] = (self.trilateration_loss(pos_forward) - self.trilateration_loss(pos_backward)) / (2 * epsilon)
+        
+        return grad
+
+    def update_perceived_position(self):
+        """Update perceived position by averaging over last w trilaterations."""
+        # print(self.trilateration_window)
+        if len(self.trilateration_window) >= self.w:
+            self.perceived_position = np.mean(self.trilateration_window[-self.w:], axis=0)
+
+    def trilateration_step(self):
+        """Perform a single step of trilateration and store the result."""
+        self.gradient_descent()
+        self.trilateration_window.append(self.perceived_position)
+        
+        if len(self.trilateration_window) > self.w:
+            self.trilateration_window.pop(0)  # Maintain a window of size w
+
+    def move(self):
+        """Simulate agent movement with some error."""
+        movement_error = np.random.uniform(-0.05, 0.05, size=2)  # Small movement error
+        movement_step = np.random.uniform(-1.0, 1.0, size=2) + movement_error
+        self.position += movement_step
+
+def update_neighbors(agents):
+    # Cálculo de distancia entre los puntos con vectorización para eficiencia
+    agents_coor_array = np.array([(agent.position) for agent in agents])
+
+    # Calcula la diferencia entre todos los puntos en formato de matriz
+    diferencias = agents_coor_array[:, np.newaxis, :] - agents_coor_array[np.newaxis, :, :]
+
+    # Calcula la distancia euclidiana (norma 2) para cada par de puntos
+    distancias = np.linalg.norm(diferencias, axis=-1)
+
+    indices_cercanos = np.argsort(distancias, axis=1)[:, 1:4]
+
+    for index, agent in enumerate(agents):
+    
+        agent.neighbors = [agents[i] for i in indices_cercanos[index]]
+
+def main():
+    # Example usage:
+    agent1 = Agent(1, initial_position=np.array([1.0, 2.0]))
+    agent2 = Agent(2, initial_position=np.array([2.0, 3.0]))
+    agent3 = Agent(3, initial_position=np.array([3.0, 4.0]))
+    agent4 = Agent(4, initial_position=np.array([4.0, 5.0]))
+
+    agent1.perceived_position = np.array([1.0, 2.0])
+    agent2.perceived_position = np.array([2.0, 3.0])
+    agent3.perceived_position = np.array([3.0, 4.0])
+
+    agents = [agent1, agent2, agent3, agent4]
+
+    update_neighbors(agents)
+
+    # # Define neighbors (each agent needs to know their neighbor's perceived position)
+    # agent1.neighbors = [agent2, agent3, agent4]
+    # agent2.neighbors = [agent1, agent3, agent4]
+    # agent3.neighbors = [agent1, agent2, agent4]
+    # agent4.neighbors = [agent1, agent2, agent3]
+
+
+
+    # Perform trilateration
+    for step in range(1):
+        agent1.trilateration_step()
+        agent2.trilateration_step()
+        agent3.trilateration_step()
+        agent4.trilateration_step()
+        # print(step)
+
+        # Agents adjust perceived coordinates every 'r' steps
+        if step % agent1.r == 0:
+            agent1.update_perceived_position()
+            agent2.update_perceived_position()
+            agent3.update_perceived_position()
+            agent4.update_perceived_position()
+
+
+    print(agent1.perceived_position)
+    print(agent2.perceived_position)
+    print(agent3.perceived_position)
+    print(agent4.perceived_position)
+
+
+if __name__ == "__main__":
+    main()
