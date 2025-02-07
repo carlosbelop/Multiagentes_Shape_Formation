@@ -34,7 +34,6 @@ class Agent:
     def gradient_descent(self):
         """Perform gradient descent to minimize trilateration error."""
         if sum(1 for neigh in self.neighbors if neigh.perceived_position is not None) < 3:
-            print(f'No realizado agente: {self.id}')
             return  # Not enough neighbors to perform trilateration
 
         # Initial position (if known) or random start
@@ -42,12 +41,8 @@ class Agent:
             self.perceived_position = initialize_position_from_neighbors(self)
         
         for i in range(100):  # Maximum 100 iterations
-            # print(self.perceived_position)
-            # print(f'Iteraciones agent{self.id} perceived_position: {self.perceived_position}')
             gradient = self.compute_gradient(self.perceived_position)
-            # print(f'Beta del agente: {self.beta}, Gradiente del agente: {str(gradient)}')
             self.perceived_position = self.perceived_position - self.beta * gradient
-            # print('Gradiente: ' + str(np.linalg.norm(gradient)))
             if np.linalg.norm(gradient) < 1e-1:
                 break  # Stop when gradient is small
     
@@ -67,7 +62,6 @@ class Agent:
 
     def update_perceived_position(self):
         """Update perceived position by averaging over last w trilaterations."""
-        # print(self.trilateration_window)
         if len(self.trilateration_window) >= self.w:
             self.perceived_position = np.mean(self.trilateration_window, axis=0)
 
@@ -114,12 +108,10 @@ def intersect_circles(c1, r1, c2, r2, max_adjustment=0.3, steps=3):
     steps: Number of incremental adjustments to try
     Returns: A tuple with two points (x1, y1), (x2, y2), or None if no intersection.
     """
-    # print(f'c2: {c2}')
-    # print(f'c1: {c1}')
+
     d = np.linalg.norm(c1 - c2)
     adjusted_r1 = r1
     for step in range(steps):
-        print('step: ' + str(step))
         # !Problema de que no encuentra intersección
         if d <= adjusted_r1 + r2 and d >= abs(adjusted_r1 - r2):
             # If circles intersect, calculate the intersection points
@@ -143,7 +135,6 @@ def intersect_circles(c1, r1, c2, r2, max_adjustment=0.3, steps=3):
         #     adjusted_r1 -= max_adjustment / steps
     
     # If after adjustments there's still no intersection, return approximate midpoints
-    print('no interseccion')
     midpoint = (c1 + c2) / 2
     return midpoint, midpoint
 
@@ -154,24 +145,18 @@ def initialize_position_from_neighbors(agent):
     neighbors = np.random.choice(agent.neighbors, 3, replace=False)
     NBp, NBq, NBr = neighbors
 
-    print(f'NBp.perceived_position: {NBp.perceived_position}')
-    print(f'NBq.perceived_position: {NBq.perceived_position}')
-    print(f'NBr.perceived_position: {NBr.perceived_position}')
-
     # Step 2: Draw circles P, Q, R around NBp, NBq, NBr
     dp = agent.neighbors_distances[0]
     dq = agent.neighbors_distances[1]
     dr = agent.neighbors_distances[2]
 
     PQa, PQb = intersect_circles(NBp.perceived_position, dp, NBq.perceived_position, dq)
-    print(f'punto PQa: {PQa}')
-    print(f'punto PQb: {PQb}')
+
     if PQa is None or PQb is None:
         return None
 
     PRa, PRb = intersect_circles(NBp.perceived_position, dp, NBr.perceived_position, dr)
-    print(f'punto PRa: {PRa}')
-    print(f'punto PRb: {PRb}')
+
     if PRa is None or PRb is None:
         return None
 
@@ -187,19 +172,16 @@ def initialize_position_from_neighbors(agent):
     A = np.array([direction_PQ, -direction_PR]).T
     b = midpoint_PR - midpoint_PQ
 
-    print(f'Matriz A: {A}')
-    print(f'Mispoin b: {b}')
-
     # Solve for the intersection of the two lines
     try:
         t = np.linalg.solve(A, b)
         starting_point = midpoint_PQ + t[0] * direction_PQ
         starting_point = PQa if np.linalg.norm(PQa - starting_point) < np.linalg.norm(PQb - starting_point) else PQb
-        print(f'Starting point: {starting_point}')
+
     except np.linalg.LinAlgError:
         # If the lines are parallel or ill-conditioned, use the midpoint as a fallback
         starting_point = midpoint_PQ
-        print(f'Starting point error: {starting_point}')
+
 
     # Return the calculated starting point
     return starting_point
@@ -224,20 +206,17 @@ def main():
     # # Define neighbors (each agent needs to know their neighbor's perceived position)
 
     # Perform trilateration
-    for step in range(10):
+    for step in range(1):
         agent1.trilateration_step()
         agent2.trilateration_step()
         agent3.trilateration_step()
-        print(f'Agent4 perceived position: {agent4.perceived_position}')
         agent4.trilateration_step()
-        print(f'Agent4 perceived position: {agent4.perceived_position}')
         agent5.trilateration_step()
-        # print(step)
-        agent1.move()
-        agent2.move()
-        agent3.move()
-        agent4.move()
-        agent5.move()
+        # agent1.move()
+        # agent2.move()
+        # agent3.move()
+        # agent4.move()
+        # agent5.move()
 
         # Agents adjust perceived coordinates every 'r' steps
         if step % agent1.r == 0:
@@ -248,6 +227,7 @@ def main():
             agent5.update_perceived_position()
 
 
+    print("Guessed positions")
     print(agent1.perceived_position)
     print(agent2.perceived_position)
     print(agent3.perceived_position)
@@ -259,7 +239,6 @@ def main():
     print(agent3.position)
     print(agent4.position)
     print(agent5.position)
-
 
 if __name__ == "__main__":
     main()

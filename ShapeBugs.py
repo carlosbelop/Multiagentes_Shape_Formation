@@ -114,11 +114,13 @@ class Obstacle:
     def distance(self, agent):
         return math.sqrt((self.x - agent.x) ** 2 + (self.y - agent.y) ** 2)
 
+# Función para escribir un texto en la pantalla (el del slider)
 def draw_text(win, text, position, color=BLACK, font_size=24):
     font = pygame.font.SysFont(None, font_size)
     text_surface = font.render(text, True, color)
     win.blit(text_surface, position)
 
+# Función de movimiento de gas cuando los agentes están dentro de la figura
 def gas_content_movement(agent, neighbors):
     force_x, force_y = 0, 0
     for neighbor in neighbors:
@@ -139,6 +141,7 @@ def gas_content_movement(agent, neighbors):
         agent.vx = (agent.vx / speed) * max_speed
         agent.vy = (agent.vy / speed) * max_speed
 
+# Función de los agentes para evitar un obstáculo
 def avoid_obstacles(agent, obstacles):
     obstacle_nearby = False
     for obstacle in obstacles:
@@ -153,16 +156,11 @@ def avoid_obstacles(agent, obstacles):
             agent.vx += dx * repulsion * 0.5
             agent.vy += dy * repulsion * 0.5
 
-            # max_speed = agent.step_size
-            # speed = math.sqrt(agent.vx**2 + agent.vy**2)
-            # if speed > max_speed:
-            #     agent.vx = (agent.vx / speed) * max_speed
-            #     agent.vy = (agent.vy / speed) * max_speed
-
     if obstacle_nearby:
         agent.x += agent.vx
         agent.y += agent.vy
 
+# Movimiento de los agentes cuando están fuera de la figura
 def outside_movement(agent, neighbors):
     force_x, force_y = 0, 0
     for neighbor in neighbors:
@@ -173,8 +171,8 @@ def outside_movement(agent, neighbors):
             dy = agent.y - neighbor.y
             force_x -= dx * attraction
             force_y -= dy * attraction
-        elif distance <= agent.agent_radius+15:
-            repulsion = 2
+        elif distance <= agent.agent_radius+5:
+            repulsion = 1
             dx = agent.x - neighbor.x
             dy = agent.y - neighbor.y
             force_x += dx * repulsion
@@ -189,8 +187,23 @@ def outside_movement(agent, neighbors):
         agent.vx = (agent.vx / speed) * max_speed
         agent.vy = (agent.vy / speed) * max_speed
 
-def run(ecuation_shape: Callable[[int, int], bool], n_agents: int=200, sensor_range: int=50, agent_radius: int=5, step_size: int=2, min_agents: int=10, max_agents: int=500, width: int=800, height: int=800, simulation_delay: int = 40, num_obstacles: int = 2):
-    
+# Ejecución del algoritmo
+def run(ecuation_shape: Callable[[int, int], bool], n_agents: int=200, sensor_range: int=50, agent_radius: int=5, step_size: int=2, min_agents: int=10, max_agents: int=500, width: int=800, height: int=800, simulation_delay: int = 20, num_obstacles: int = 2):
+    """Run the simuation with the arguments specified
+
+    Args:
+        ecuation_shape (Callable[[int, int], bool]): Shape that agents are going to construct. (Star, Heart and Squared Square implemented)
+        n_agents (int, optional): Starting number of agents (can be change during the simulation with the slider). Defaults to 200.
+        sensor_range (int, optional): The range of the sensor of each agent. Defaults to 50.
+        agent_radius (int, optional): Size of agents. Defaults to 5.
+        step_size (int, optional): Speed of agents. Defaults to 2.
+        min_agents (int, optional): Min numbers of agents in the simulation. Defaults to 10.
+        max_agents (int, optional): Max numbers of agents in the simulation. Defaults to 500.
+        width (int, optional): Width of simulation window. Defaults to 800.
+        height (int, optional): Height of simulation window. Defaults to 800.
+        simulation_delay (int, optional): Speed of the simulation. Defaults to 20.
+        num_obstacles (int, optional): Number of obstacles bothering the agents. Defaults to 2.
+    """
     pygame.init()
 
     window = pygame.display.set_mode((width, height))
@@ -262,25 +275,23 @@ def heart_shape(x: int, y: int) -> bool :
     y = (height/2 - y) / scale
     return (x**2 + y**2 - 1)**3 - x**2 * y**3 <= 0
 
-def suspicious_shape(x, y, centro1=(300, 150), centro2=(500, 150), radio=100, altura=650):
-    # Parte 1: Círculos en la parte superior
-    x1, y1 = centro1  # Centro del primer círculo
-    x2, y2 = centro2  # Centro del segundo círculo
-
-    # Verificamos si está dentro de alguno de los dos círculos
-    dentro_circulo1 = math.sqrt((x - x1)**2 + (y - y1)**2) <= radio
-    dentro_circulo2 = math.sqrt((x - x2)**2 + (y - y2)**2) <= radio
+# Función con forma de estrella
+def star_shape(x, y, x0=400, y0=400, a=200, n=5):
+    # Ajustamos las coordenadas al nuevo centro (x0, y0)
+    x_adjusted = x - x0
+    y_adjusted = y - y0
     
-    # Parte 2: Rectángulo en el centro (alargado)
-    # Verificamos si está dentro del rectángulo alargado vertical
-    dentro_rectangulo = (x >= x1 and x <= x2 and y >= y1 and y <= altura)
-    
-    distancia_glande = math.sqrt((x - (x1+x2)/2)**2 + (y - altura)**2)
-    dentro_semicirculo = distancia_glande <= radio and y <= altura+radio
+    # Convertimos las coordenadas ajustadas (x, y) a polares (r, theta)
+    r_punto = math.sqrt(x_adjusted**2 + y_adjusted**2)  # Distancia al origen (nuevo centro)
+    theta = math.atan2(y_adjusted, x_adjusted)          # Ángulo en radianes
 
-    # Si está en cualquiera de los círculos o en el rectángulo, está dentro de la forma
-    return dentro_circulo1 or dentro_circulo2 or dentro_rectangulo or dentro_semicirculo
+    # Calculamos el radio de la estrella en ese ángulo
+    r_estrella = a * math.cos(n * theta / 2)
 
+    # Si el punto está dentro o sobre el contorno de la estrella
+    return r_punto <= abs(r_estrella)
+
+# Función con forma de cuadrado con 9 cuadrados dentro (como en el paper)
 def squared_square(x, y):
     # Coordenadas del cuadrado grande
     large_square_x_min, large_square_x_max = 100, 700
@@ -309,7 +320,7 @@ def squared_square(x, y):
     return True
 
 def main():
-    run(heart_shape, sensor_range= 50, max_agents=1000)
+    run(squared_square, sensor_range= 50, max_agents=1000, num_obstacles=2)
 
 if __name__ == "__main__":
     main()
