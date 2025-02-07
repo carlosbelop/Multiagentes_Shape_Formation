@@ -19,7 +19,6 @@ Robust and self-repairing formation control for swarms of mobile agents. This si
   - ShapeBugs.py – Main script to run the simulation.
 
 - Secondary Files:
-  - Depredadores.py – Script for predator behavior (totally different project, has no utility here, just curiosity).
   - probando.py – Additional script for testing purposes.
 
 ---
