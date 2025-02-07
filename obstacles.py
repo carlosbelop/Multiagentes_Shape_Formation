@@ -11,7 +11,7 @@ WHITE = (255, 255, 255)
 BLUE = (0, 0, 255)
 RED = (255, 0, 0)
 BLACK = (0, 0, 0)
-YELLOW = (255, 255, 0)
+GRAY = (128, 128, 128)
 
 # Clase para representar un agente
 class Agent:
@@ -46,7 +46,9 @@ class Agent:
         elif self.y > self.height: self.y = 0
 
     def boundary_check(self):
-        while (not self.inside_container(self.x + self.vx, self.y + self.vy)):
+        # Si el agente está en los bordes, permitir que se mueva si hay obstáculos cerca
+        while not self.inside_container(self.x + self.vx, self.y + self.vy):
+            # Evitar quedarse quieto si un obstáculo está cerca
             if random.random() <= 0.1:
                 self.vx = random.uniform(-1, 1) * self.step_size
                 self.vy = random.uniform(-1, 1) * self.step_size
@@ -59,7 +61,7 @@ class Agent:
 
     def distance(self, other):
         return math.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2)
-    
+
 # Slider interactivo
 class Slider:
     def __init__(self, x, y, w, h, min_val, max_val, initial_val):
@@ -86,59 +88,36 @@ class Slider:
     def get_value(self):
         return int(self.val)
 
-# Clase para representar un obstáculo móvil
+# Clase para representar un obstáculo
 class Obstacle:
-    def __init__(self, x, y, radius=20, step_size=3):
-        self.x = x
-        self.y = y
-        self.vx = random.choice([-1, 1]) * step_size
-        self.vy = random.choice([-1, 1]) * step_size
-        self.radius = radius
+    def __init__(self, width: int=800, height: int=800, obstacle_radius: int=10, speed: int=3):
+        self.x = random.randint(0, width)
+        self.y = random.randint(0, height)
+        self.vx = random.uniform(-1, 1) * speed
+        self.vy = random.uniform(-1, 1) * speed
+        self.obstacle_radius = obstacle_radius
+        self.width = width
+        self.height = height
 
     def move(self):
         self.x += self.vx
         self.y += self.vy
 
-        if self.x - self.radius < 0 or self.x + self.radius > WIDTH:
-            self.vx *= -1
-        if self.y - self.radius < 0 or self.y + self.radius > HEIGHT:
-            self.vy *= -1
+        if self.x < 0: self.x = self.width
+        elif self.x > self.width: self.x = 0
+        if self.y < 0: self.y = self.height
+        elif self.y > self.height: self.y = 0
 
     def draw(self, win):
-        pygame.draw.circle(win, YELLOW, (int(self.x), int(self.y)), self.radius)
+        pygame.draw.circle(win, RED, (int(self.x), int(self.y)), self.obstacle_radius)
 
-def trilateration(agent, neighbors):
-    if len(neighbors) < 3:
-        return
+    def distance(self, agent):
+        return math.sqrt((self.x - agent.x) ** 2 + (self.y - agent.y) ** 2)
 
-    neighbor1 = neighbors[0]
-    neighbor2 = neighbors[1]
-    neighbor3 = neighbors[2]
-
-    d1 = agent.distance(neighbor1)
-    d2 = agent.distance(neighbor2)
-    d3 = agent.distance(neighbor3)
-
-    x1, y1 = neighbor1.x, neighbor1.y
-    x2, y2 = neighbor2.x, neighbor2.y
-    x3, y3 = neighbor3.x, neighbor3.y
-
-    A = 2 * (x2 - x1)
-    B = 2 * (y2 - y1)
-    C = d1**2 - d2**2 - x1**2 + x2**2 - y1**2 + y2**2
-
-    D = 2 * (x3 - x2)
-    E = 2 * (y3 - y2)
-    F = d2**2 - d3**2 - x2**2 + x3**2 - y2**2 + y3**2
-
-    try:
-        xp = (C * E - F * B) / (A * E - B * D)
-        yp = (C * D - A * F) / (B * D - A * E)
-
-        agent.x = xp
-        agent.y = yp
-    except ZeroDivisionError:
-        pass
+def draw_text(win, text, position, color=BLACK, font_size=24):
+    font = pygame.font.SysFont(None, font_size)
+    text_surface = font.render(text, True, color)
+    win.blit(text_surface, position)
 
 def gas_content_movement(agent, neighbors):
     force_x, force_y = 0, 0
@@ -160,6 +139,30 @@ def gas_content_movement(agent, neighbors):
         agent.vx = (agent.vx / speed) * max_speed
         agent.vy = (agent.vy / speed) * max_speed
 
+def avoid_obstacles(agent, obstacles):
+    obstacle_nearby = False
+    for obstacle in obstacles:
+        distance = obstacle.distance(agent)
+        if distance < agent.sensor_range:
+            
+            obstacle_nearby = True
+            # Fuerza de repulsión para evitar el obstáculo
+            repulsion = (agent.sensor_range - distance) / distance if distance > 0 else 0
+            dx = agent.x - obstacle.x
+            dy = agent.y - obstacle.y
+            agent.vx += dx * repulsion * 0.5
+            agent.vy += dy * repulsion * 0.5
+
+            # max_speed = agent.step_size
+            # speed = math.sqrt(agent.vx**2 + agent.vy**2)
+            # if speed > max_speed:
+            #     agent.vx = (agent.vx / speed) * max_speed
+            #     agent.vy = (agent.vy / speed) * max_speed
+
+    if obstacle_nearby:
+        agent.x += agent.vx
+        agent.y += agent.vy
+
 def outside_movement(agent, neighbors):
     force_x, force_y = 0, 0
     for neighbor in neighbors:
@@ -170,8 +173,8 @@ def outside_movement(agent, neighbors):
             dy = agent.y - neighbor.y
             force_x -= dx * attraction
             force_y -= dy * attraction
-        elif distance <= agent.agent_radius+5:
-            repulsion = 1
+        elif distance <= agent.agent_radius+15:
+            repulsion = 2
             dx = agent.x - neighbor.x
             dy = agent.y - neighbor.y
             force_x += dx * repulsion
@@ -186,27 +189,15 @@ def outside_movement(agent, neighbors):
         agent.vx = (agent.vx / speed) * max_speed
         agent.vy = (agent.vy / speed) * max_speed
 
-
-def draw_text(win, text, position, color=BLACK, font_size=24):
-    font = pygame.font.SysFont(None, font_size)
-    text_surface = font.render(text, True, color)
-    win.blit(text_surface, position)
-
-def run(ecuation_shape: Callable[[int, int], bool], n_agents: int=200, sensor_range: int=30, agent_radius: int=5, step_size: int=2, min_agents: int=10, max_agents: int=500, width: int=800, height: int=800, simulation_delay: int = 20):
+def run(ecuation_shape: Callable[[int, int], bool], n_agents: int=200, sensor_range: int=50, agent_radius: int=5, step_size: int=2, min_agents: int=10, max_agents: int=500, width: int=800, height: int=800, simulation_delay: int = 40, num_obstacles: int = 2):
     
-    # Colores
-    WHITE = (255, 255, 255)
-    BLUE = (0, 0, 255)
-    RED = (255, 0, 0)
-    BLACK = (0, 0, 0)
-    GRAY = (128, 128, 128)
-
     pygame.init()
 
     window = pygame.display.set_mode((width, height))
-    pygame.display.set_caption("SHAPEBUGS Simulation with Slider")
+    pygame.display.set_caption("SHAPEBUGS Simulation with Obstacles")
 
     agents = [Agent(ecuation_shape, width, height, step_size, agent_radius, sensor_range) for _ in range(n_agents)]
+    obstacles = [Obstacle(width, height) for _ in range(num_obstacles)]  # Crear 5 obstáculos
 
     slider = Slider(20, height - 40, 200, 20, min_agents, max_agents, n_agents)
 
@@ -219,60 +210,50 @@ def run(ecuation_shape: Callable[[int, int], bool], n_agents: int=200, sensor_ra
             if event.type == pygame.QUIT:
                 run = False
 
-        # Actualizar el valor del slider según la posición del ratón
         mouse_pos = pygame.mouse.get_pos()
         mouse_pressed = pygame.mouse.get_pressed()
         slider.update(mouse_pos, mouse_pressed)
 
-        # Obtener el número actual de agentes del slider
         n_agents = slider.get_value()
-
         draw_text(window, f"Número de agentes: {n_agents}", (20, 740), BLACK, 24)
 
-        # Ajustar la lista de agentes dinámicamente
         if n_agents > len(agents):
             agents += [Agent(ecuation_shape, width, height, step_size, agent_radius, sensor_range) for _ in range(n_agents - len(agents))]
         elif n_agents < len(agents):
             agents = agents[:n_agents]
 
-        # Cálculo de distancia entre los puntos con vectorización para eficiencia
         agents_coor_array = np.array([(agent.x, agent.y) for agent in agents])
-
-        # Calcula la diferencia entre todos los puntos en formato de matriz
         diferencias = agents_coor_array[:, np.newaxis, :] - agents_coor_array[np.newaxis, :, :]
-
-        # Calcula la distancia euclidiana (norma 2) para cada par de puntos
         distancias = np.linalg.norm(diferencias, axis=-1)
-
         indices_cercanos = np.argsort(distancias, axis=1)[:, 1:4]
 
-        # Mover y dibujar agentes
         for index, agent in enumerate(agents):
-            
             neighbors = [agents[i] for i in indices_cercanos[index]]
-            # trilateration(agent, neighbors)
 
-            # Si el agente cree que está dentro de la figura
             if ecuation_shape(agent.x, agent.y):
                 gas_content_movement(agent, neighbors)
                 agent.color = BLUE
             else:
                 outside_movement(agent, neighbors)
                 agent.color = GRAY
+
             agent.move()
             agent.draw(window)
 
-        # Dibujar el slider
-        slider.draw(window)
+            # Comportamiento de evasión de obstáculos
+            avoid_obstacles(agent, obstacles)
 
+        for obstacle in obstacles:
+            obstacle.move()
+            obstacle.draw(window)
+
+        slider.draw(window)
         pygame.display.update()
 
     pygame.quit()
 
 # Función con forma de corazón
 def heart_shape(x: int, y: int) -> bool :
-    # Escalamos y normalizamos las coordenadas
-    
     width = 800
     height = 800
     scale = 200
@@ -280,29 +261,6 @@ def heart_shape(x: int, y: int) -> bool :
     x = (x - width/2) / scale
     y = (height/2 - y) / scale
     return (x**2 + y**2 - 1)**3 - x**2 * y**3 <= 0
-
-
-def main():
-    
-    run(heart_shape, sensor_range= 50, max_agents=1000)
-
-if __name__ == "__main__":
-    main()
-
-def star_shape(x, y, x0=400, y0=400, a=200, n=10):
-    # Ajustamos las coordenadas al nuevo centro (x0, y0)
-    x_adjusted = x - x0
-    y_adjusted = y - y0
-    
-    # Convertimos las coordenadas ajustadas (x, y) a polares (r, theta)
-    r_punto = math.sqrt(x_adjusted**2 + y_adjusted**2)  # Distancia al origen (nuevo centro)
-    theta = math.atan2(y_adjusted, x_adjusted)          # Ángulo en radianes
-
-    # Calculamos el radio de la estrella en ese ángulo
-    r_estrella = a * math.cos(n * theta / 2)
-
-    # Si el punto está dentro o sobre el contorno de la estrella
-    return r_punto <= abs(r_estrella)
 
 def suspicious_shape(x, y, centro1=(300, 150), centro2=(500, 150), radio=100, altura=650):
     # Parte 1: Círculos en la parte superior
@@ -349,3 +307,9 @@ def squared_square(x, y):
     
     # Si el punto está dentro del cuadrado grande pero fuera de los pequeños, devuelve True
     return True
+
+def main():
+    run(heart_shape, sensor_range= 50, max_agents=1000)
+
+if __name__ == "__main__":
+    main()

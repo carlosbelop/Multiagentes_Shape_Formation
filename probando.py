@@ -26,7 +26,6 @@ class Agent:
         """Compute the loss function for trilateration based on distance to neighbors."""
         loss = 0.0
         for i, neighbor in enumerate(self.neighbors):
-            #! El error puede venir de calcular la distancia varias veces y tener distinto error cada vez.
             dPSi = self.neighbors_distances[i]
             xi, yi = neighbor.perceived_position
             loss += (np.linalg.norm(perceived_position - np.array([xi, yi])) - dPSi)** 2
@@ -86,7 +85,7 @@ class Agent:
     def move(self):
         """Simulate agent movement with some error."""
         movement_error = np.random.uniform(-0.05, 0.05, size=2)  # Small movement error
-        movement_step = np.random.uniform(-1.0, 1.0, size=2) + movement_error
+        movement_step = np.random.uniform(-1.0, 1.0, size=2) #+ movement_error
         self.position += movement_step
 
 def update_neighbors(agents):
@@ -106,7 +105,7 @@ def update_neighbors(agents):
         agent.neighbors = [agents[i] for i in indices_cercanos[index]]
         agent.neighbors_distances = [agent.proximity_sensor(neighbor) for neighbor in agent.neighbors]
 
-def intersect_circles(c1, r1, c2, r2, max_adjustment=0.2, steps=3):
+def intersect_circles(c1, r1, c2, r2, max_adjustment=0.3, steps=3):
     """Return the intersection points of two circles.
     If no intersection occurs due to small sensor errors, adjust the radii.
     c1, c2: Centers of the circles (arrays or lists)
@@ -134,15 +133,17 @@ def intersect_circles(c1, r1, c2, r2, max_adjustment=0.2, steps=3):
         # Adjust the radii slightly to attempt intersection
         # Si es igual y no encuentra intersección debido al error, empezamos aumentando el radio.
         if adjusted_r1 == r1:
-            adjusted_r1 += max_adjustment / steps
+            # adjusted_r1 += max_adjustment / steps
+            adjusted_r1 += max_adjustment
         # Si llega al máximo aumento de radio (2 veces el error de medida del sensor, por haber calculado el radio de dos círculos) sin encontrar intersección, reseteamos r1 hacia abajo.
-        elif adjusted_r1 >= r1 + max_adjustment:
-            adjusted_r1= r1 - max_adjustment / steps
+        elif adjusted_r1 == r1 + max_adjustment:
+            adjusted_r1= r1 - max_adjustment
         # Continuamos disminuyendo el radio hasta el límite del error.
-        elif adjusted_r1<r1 and not adjusted_r1<r1-max_adjustment:
-            adjusted_r1 -= max_adjustment / steps
+        # elif adjusted_r1<r1 and not adjusted_r1<r1-max_adjustment:
+        #     adjusted_r1 -= max_adjustment / steps
     
     # If after adjustments there's still no intersection, return approximate midpoints
+    print('no interseccion')
     midpoint = (c1 + c2) / 2
     return midpoint, midpoint
 
@@ -209,7 +210,7 @@ def main():
     agent2 = Agent(2, initial_position=np.array([2.0, 1.0]))
     agent3 = Agent(3, initial_position=np.array([7.0, 3.0]))
     agent4 = Agent(4, initial_position=np.array([4.0, 4.0]))
-    agent5 = Agent(5, initial_position=np.array([-20.0, 5.0]))
+    agent5 = Agent(5, initial_position=np.array([-1.0, 5.0]))
 
     agent1.perceived_position = np.array([0.0, 2.0])
     agent2.perceived_position = np.array([2.0, 1.0])
@@ -223,7 +224,7 @@ def main():
     # # Define neighbors (each agent needs to know their neighbor's perceived position)
 
     # Perform trilateration
-    for step in range(1):
+    for step in range(10):
         agent1.trilateration_step()
         agent2.trilateration_step()
         agent3.trilateration_step()
@@ -232,6 +233,11 @@ def main():
         print(f'Agent4 perceived position: {agent4.perceived_position}')
         agent5.trilateration_step()
         # print(step)
+        agent1.move()
+        agent2.move()
+        agent3.move()
+        agent4.move()
+        agent5.move()
 
         # Agents adjust perceived coordinates every 'r' steps
         if step % agent1.r == 0:
@@ -247,6 +253,12 @@ def main():
     print(agent3.perceived_position)
     print(agent4.perceived_position)
     print(agent5.perceived_position)
+    print("Real positions")
+    print(agent1.position)
+    print(agent2.position)
+    print(agent3.position)
+    print(agent4.position)
+    print(agent5.position)
 
 
 if __name__ == "__main__":
