@@ -60,7 +60,8 @@ class Agent:
         pygame.draw.circle(win, self.color, (int(self.x), int(self.y)), self.agent_radius)
 
     def distance(self, other):
-        return math.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2)
+        error = np.random.uniform(-0.1, 0.1)
+        return math.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2) + error
 
 # Slider interactivo
 class Slider:
@@ -320,7 +321,7 @@ def squared_square(x, y):
     return True
 
 def main():
-    run(squared_square, sensor_range= 50, max_agents=1000, num_obstacles=2)
+    run(heart_shape, sensor_range= 50, max_agents=1000, num_obstacles=2)
 
 if __name__ == "__main__":
     main()
