@@ -6,7 +6,7 @@ Robust and self-repairing formation control for swarms of mobile agents. This si
 
 1. Clone this repository:
 
-   git clone https://github.com/yourusername/Multiagentes_Shape_Formation.git
+   git clone https://github.com/carlosbelop/Multiagentes_Shape_Formation.git
    cd Multiagentes_Shape_Formation
 
 2. Install the dependencies from requirements.txt:
